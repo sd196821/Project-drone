@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 2.8)
+project( camera )
+#set(OpenCV_DIR /usr/local/opencv320/share)
+find_package( OpenCV REQUIRED )
+#include_directories(${OpenCV_INCLUDE_DIRS} /usr/local/opencv320/include)
+#find_package( "/usr/local/opencv320/include/opencv2" )
+#include_directories(${OpenCV_LIBRARY_DIRS} /usr/local/opencv320/lib)
+add_executable( camera VideoReadVer2.cpp )
+target_link_libraries( camera ${OpenCV_LIBS})
+
