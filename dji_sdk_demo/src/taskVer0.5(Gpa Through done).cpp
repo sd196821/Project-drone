@@ -1,6 +1,7 @@
 /******************************************
-Gimbal rotating to search the red area
-*******************************************/ 
+Gap recognition and flying-through code
+*******************************************/
+//Image : Corner counter need to be done检测角点个数，确定// 
 
 #include <iostream>
 #include <math.h>
@@ -156,11 +157,11 @@ static Point3f findSquares( const Mat& image, vector<vector<Point> >& squares ) 
     {	
         approxPolyDP(Mat(contours[i]), contours_poly[i], 3, true);
 
-        if(fabs(contourArea(Mat(contours_poly[i]))) > 2000 && isContourConvex(Mat(contours_poly[i])))
+        if(fabs(contourArea(Mat(contours_poly[i]))) > 1000 && isContourConvex(Mat(contours_poly[i])))
         {
 	  
           //boundRect[i] = boundingRect(Mat(contours[i]));
-          float rate_err=1.5;//big error;
+          float rate_err=0.4;
           float rateLow=2.5-rate_err;
           float rateHigh=2.5+rate_err;
           //Rect r0=boundingRect(Mat(contours[i]));
@@ -261,12 +262,12 @@ int main(int argc, char** argv)
 
     ros::NodeHandle nh;
     DJIDrone* drone = new DJIDrone(nh);  //dynamic storation space allocation
-    /*unsigned char flag =
+    unsigned char flag =
             Flight::HorizontalLogic::HORIZONTAL_VELOCITY |
             Flight::VerticalLogic::VERTICAL_VELOCITY |
             Flight::YawLogic::YAW_RATE |
             Flight::HorizontalCoordinate::HORIZONTAL_BODY |
-            Flight::SmoothMode::SMOOTH_DISABLE;*/
+            Flight::SmoothMode::SMOOTH_DISABLE;
 
     ros::Rate loop_rate(50);
     
@@ -281,7 +282,6 @@ int main(int argc, char** argv)
 
     while(ros::ok())
     {
-      //drone->request_sdk_permission_control();
       //imageRead().copyTo(src);
       //medianBlur(src,src,3);
       //int ret;
@@ -294,33 +294,17 @@ int main(int argc, char** argv)
           cout<<"Fail to acquire picture."<<endl;
       cvtColor(camera,camera,CV_YUV2BGR_NV12);
       image = camera(Range(0, 720), Range(160, 1120));
-            
+
       contoursCenter = findSquares(image,squares);
       detected_flag = contoursCenter.z;
       drawSquares(image,squares);
-      
-      int gimbal_yaw=drone->gimbal.yaw;
-      if(detected_flag == 0)
-      {
-        if(gimbal_yaw >= -890)
-          drone->gimbal_speed_control(0,0,-10);//roll_r,pitch_r,yaw_rate}
-        else if(gimbal_yaw <= 890)
-          drone->gimbal_speed_control(0,0,10);
-      }
-      else
-      {
-          drone->gimbal_speed_control(0,0,0);
-          cout<<"Large red detected"<<endl;
-          cout<<"center.x: "<<contoursCenter.x<<"  center.y: "<<contoursCenter.y<<endl;
-          cout<<"Gimbal yaw angle: "<< gimbal_yaw/10 <<" deg"<<endl;
-      }
-
-      //e_Y = deltaX_Local(contoursCenter.x, p_x);
-      //e_Z = -1 * deltaY_Local(contoursCenter.y, p_y);//coordinate frame transformation
+    
+      e_Y = deltaX_Local(contoursCenter.x, p_x);
+      e_Z = -1 * deltaY_Local(contoursCenter.y, p_y);//coordinate frame transformation
       
       //**********flight through***********//
       //step 1 : target not detected, keeping hovering state
-      /*if(detected_flag == 0)
+      if(detected_flag == 0)
       {
         cout<<"No target detected."<<endl;
         drone->attitude_control(flag, 0, 0, 0, 0);
@@ -349,7 +333,7 @@ int main(int argc, char** argv)
                 }//step 4:fly through
                 float start_position = drone->local_position.x;
                 float end_position = drone->local_position.x + GapRoute;
-                e_X = GapRoute;//deltaX_Local(GapRoute, drone->local_position.x);//***some problemxxx//
+                e_X = GapRoute;//deltaX_Local(GapRoute, drone->local_position.x);//***some problem***//
                 if(abs(e_X) > thresh_gap)
                 {
                     vx = k_p * e_X;
@@ -361,7 +345,9 @@ int main(int argc, char** argv)
                 drone->attitude_control(flag, 0, 0, 0, 0);
                 cout<<"Flying through gap done..."<<endl;
             }
-      }*/
+      }
+      
+
       if(waitKey(1) == 27) break;
       ros::spinOnce();
       loop_rate.sleep();
