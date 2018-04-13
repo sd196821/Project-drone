@@ -7,6 +7,7 @@ Gap recognition and flying-through code
 #include <math.h>
 #include <string.h>
 
+#include <opencv2/opencv.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/video/video.hpp>
@@ -42,22 +43,32 @@ unsigned int nframe = 0;
 double C_EARTH=6378137.0;
 double C_PI=3.1415926;
 
-double TarLat = 22.0;
-double TarLon = 40.000;
-double thresh_pixel = 20.0;
+//double TarLat = 22.0;
+//double TarLon = 40.000;
+double thresh_pixel;
+double thresh_gap;
+double k_p;
+double v_max;
+int iLowH;
+int iHighH;
+int iLowS;
+int iHighS;
+int iLowV;
+int iHighV;
+/*double thresh_pixel = 20.0;
 double thresh_gap = 1;
 double k_p = 1 ;
-double v_max = 0.8;
+double v_max = 0.8;*/
 
 const float deg2rad = C_PI/180.0;
 const float rad2deg = 180.0/C_PI;
 
-int iLowH = 150;
+/*int iLowH = 150;
 int iHighH = 179;
 int iLowS = 90;
 int iHighS = 255;
 int iLowV = 90;
-int iHighV = 255;
+int iHighV = 255;*/
 
 // not detected == 0,target detected == 1 ,approaching target == 2, ready to fly == 3
 //int detected_flag = 0;
@@ -238,11 +249,14 @@ pair<float,float> PID_error(float x,float y)
 
 int main(int argc, char** argv)
 { 
+
     float p_x = 1981.56522387247 * 6 / 25.0;//pixel center x
     float p_y = 1482.94787976315 * 6 / 25.0;//pixel center y
     Mat src;
     vector<vector<Point> > squares;
     float detected_flag;
+    float last_detected_flag;
+    float tmp_flag;
 
     bool control_flag = false;
     bool err_flag = false;
@@ -256,6 +270,22 @@ int main(int argc, char** argv)
     contoursCenter.y = 99999;
     contoursCenter.z = 0;
     //detected_flag = contoursCenter.z;
+
+    //parameters read from .yml file
+    FileStorage fs2("param.yaml",FileStorage::READ);
+    fs2["thresh_pixel"] >> thresh_pixel;
+    fs2["thresh_gap"] >> thresh_gap;
+    fs2["k_p"] >> k_p;
+    fs2["v_max"] >> v_max;
+    fs2["iLowH"] >> iLowH;
+    fs2["iHighH"] >> iHighH;
+    fs2["iLowS"] >> iLowS;
+    fs2["iHighS"] >> iHighS;
+    fs2["iLowV"] >> iLowV;
+    fs2["iHighV"] >> iHighV;    
+    fs2.release();
+    
+    FileStorage fs("status.yaml",FileStorage::WRITE);
     
     ros::init(argc, argv, "sdk_client");
     ROS_INFO("sdk_service_client_test");
@@ -295,8 +325,11 @@ int main(int argc, char** argv)
       cvtColor(camera,camera,CV_YUV2BGR_NV12);
       image = camera(Range(0, 720), Range(160, 1120));
 
+      last_detected_flag = tmp_flag;
+
       contoursCenter = findSquares(image,squares);
       detected_flag = contoursCenter.z;
+      tmp_flag = detected_flag;
       drawSquares(image,squares);
     
       e_Y = deltaX_Local(contoursCenter.x, p_x);
@@ -304,11 +337,12 @@ int main(int argc, char** argv)
       
       //**********flight through***********//
       //step 1 : target not detected, keeping hovering state
-      if(detected_flag == 0)
+      if(detected_flag == 0 && (last_detected_flag != 0))
       {
         cout<<"No target detected."<<endl;
         drone->attitude_control(flag, 0, 0, 0, 0);
         usleep(2);
+         fs<<"detected flag: "<<detected_flag;
       }
       else 
       {//step 2: target detected, adjust drone to aim at contours center
@@ -320,6 +354,7 @@ int main(int argc, char** argv)
                 vy = (vy > v_max)? v_max : vy;
                 vz = (vz > v_max)? v_max : vz;
                 drone->attitude_control(flag, 0, vy, vz, 0);
+                 fs<<"detected flag: "<<detected_flag;
                 usleep(2);              
             }
             else 
@@ -331,9 +366,10 @@ int main(int argc, char** argv)
                     usleep(100000);
                     cout << "Ready to fly through in %d us" << 1000-counter*100 <<endl;
                 }//step 4:fly through
+                fs<<"detected flag: "<<detected_flag;
                 float start_position = drone->local_position.x;
                 float end_position = drone->local_position.x + GapRoute;
-                e_X = GapRoute;//deltaX_Local(GapRoute, drone->local_position.x);//***some problem***//
+                e_X = GapRoute;//deltaX_Local(GapRoute, drone->local_position.x);some problem?
                 if(abs(e_X) > thresh_gap)
                 {
                     vx = k_p * e_X;
@@ -346,7 +382,8 @@ int main(int argc, char** argv)
                 cout<<"Flying through gap done..."<<endl;
             }
       }
-      
+
+      fs.release();
 
       if(waitKey(1) == 27) break;
       ros::spinOnce();
