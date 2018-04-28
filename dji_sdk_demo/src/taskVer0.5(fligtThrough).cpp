@@ -51,6 +51,8 @@ double C_PI=3.1415926;
 double thresh_pixel;
 double thresh_gap;
 double k_p;
+double k_d;
+double k_i;
 double v_max;
 double iLowH;
 double iHighH;
@@ -331,8 +333,8 @@ pair<float,float> PID_error(float x,float y)
     error_y = y;
     I_error_x += error_x;
     I_error_y += error_y;
-    p = K_p * error_x + K_i * I_error_x + K_d * error_x - last_error_x);
-    q = K_p * error_y + K_i * I_error_y + K_d * error_y - last_error_y);
+    p = K_p * error_x + K_i * I_error_x + K_d * (error_x - last_error_x);
+    q = K_p * error_y + K_i * I_error_y + K_d * (error_y - last_error_y);
     last_error_x = error_x;
     last_error_y = error_y;
     error.first = q;
@@ -360,7 +362,9 @@ int main(int argc, char** argv)
     double vx = 0;
     double vy = 0;
     double vz = 0;
-    float e_X,e_Y, e_Z;
+    float e_X = 0,e_Y = 0,e_Z = 0;
+    float e_X_last,e_Y_last,e_Z_last;
+    float e_X_sum = 0,e_Y_sum = 0,e_Z_sum = 0;
     double GapVel;//distance to fly through Gap
     Point3f contoursCenter;//z equals to detected_flag
     contoursCenter.x = 99999;
@@ -403,9 +407,11 @@ int main(int argc, char** argv)
     ros::NodeHandle nh1("~");
     nh1.param("thresh_gap",thresh_gap,1.0);
     nh1.param("thresh_pixel",thresh_pixel,20.0);
-    nh1.param("k_p",k_p,0.1);
+    nh1.param("k_p",k_p,0.5);
+    nh1.param("k_d",k_d,0.05);
+    nh1.param("k_i",k_i,0.005);
     nh1.param("v_max",v_max,0.3);
-    nh1.param("GapVel",GapVel,5.0);
+    nh1.param("GapVel",GapVel,0.1);
     nh1.param("iLowH",iLowH,150.0);
     nh1.param("iHighH",iHighH,179.0);
     nh1.param("iLowS",iLowS,90.0);
@@ -463,13 +469,9 @@ int main(int argc, char** argv)
 
       //fs<<"contours center X:  "<<contoursCenter.x;
       //fs<<"                Y:  "<<contoursCenter.y;
-    
-      e_Y = deltaX_Local(contoursCenter.x, p_x);
-      e_Z = -1 * deltaY_Local(contoursCenter.y, p_y);//coordinate frame transformation
-
-      
+          
       //**********flight through***********//
-      //step 1 : target not detected, keeping hovering state
+      //``````step 1 : target not detected, keeping hovering state
       if((detected_flag == 0) && (last_detected_flag <= 10))
       {
         //cout<<"No target detected."<<endl;
@@ -478,13 +480,23 @@ int main(int argc, char** argv)
         //fs<<"detected flag: "<<detected_flag;
       }
       else 
-      {//step 2: target detected, adjust drone to aim at contours center
+      {//``````step 2: target detected, adjust drone to aim at contours center
           cout<<"Target found."<<endl;
+
+          e_Y_last = e_Y;
+          e_Z_last = e_Z;
+
+          e_Y = deltaX_Local(contoursCenter.x, p_x);
+          e_Z = -1 * deltaY_Local(contoursCenter.y, p_y);//coordinate frame transformation
+          
+          e_Y_sum += e_Y;
+          e_Z_sum += e_Z; 
+
           if((abs(e_Y) > thresh_pixel) && (abs(e_Z) > thresh_pixel) )
             {
                 detected_flag = 2;
-                vy = k_p * e_Y;
-                vz = k_p * e_Z;
+                vy = k_p * e_Y + k_d * (e_Y - e_Y_last) + k_i * e_Y_sum;
+                vz = k_p * e_Z + k_d * (e_Z - e_Z_last) + k_i * e_Z_sum;
                 vy = (abs(vy) > v_max)? v_max*abs(vy)/vy : vy;
                 vz = (abs(vz) > v_max)? v_max*abs(vz)/vz : vz;
                 drone->attitude_control(flag, 0, vy, vz, 0);
@@ -492,12 +504,12 @@ int main(int argc, char** argv)
                 usleep(2);              
             }
             else 
-            {//step 3:ready to fly through gap
+            {//`````````step 3:ready to fly through gap
                 detected_flag = 3;
                 //drone->attitude_control(flag, 0, 0, 0, 0);
                 //usleep(100000);
                 cout << "Ready to fly through " <<endl;
-                //step 4:fly through
+                //``````step 4:fly through
                 //fs<<"detected flag: "<<detected_flag;
                 //float start_position = drone->local_position.x;
                 //float end_position = drone->local_position.x + GapRoute;
