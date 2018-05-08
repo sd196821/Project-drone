@@ -204,20 +204,21 @@ int main()
 {
     vector<vector<Point> > squares;
     Mat img;
-    img=imread("/home/long/FlightPictures/saved/picture440.png");
-  //VideoCapture cap(1);
+    //img=imread("/home/long/FlightPictures/saved/picture800.png");
+  VideoCapture cap(1);
 
-  //while(cap.isOpened())
-  //{
-    //cap>>img;
+  while(cap.isOpened())
+  {
+    cap>>img;
     findSquares(img,squares);
     drawSquares(img,squares);
         
     imshow("out",img);
-    waitKey(0);
-  //}
-  //cap.release();
+    waitKey(30);
+  }
+  cap.release();
     //waitKey(0);
   return 0;
 
 }
+

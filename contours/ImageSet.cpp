@@ -52,18 +52,18 @@ void RED_hsv2binary(Mat & src,Mat & dst)
             }
         }
     }
-    //Mat elementofdilate = getStructuringElement( MORPH_RECT,
-    //                                     Size( 3, 3 ),
-    //                                     Point( dilation_size, dilation_size ) );
-    ///膨胀操作
-    //dilate( dst, dst, elementofdilate );
+    Mat elementofdilate = getStructuringElement( MORPH_RECT,
+                                         Size( 5, 5 ),
+                                         Point( dilation_size, dilation_size ) );
+    //膨胀操作
+    dilate( dst, dst, elementofdilate );
 
     //Mat elementoferode = getStructuringElement( MORPH_RECT,
-    //                                     Size( 3, 2*erosion_size+1 ),
+    //                                     Size( 5, 2*erosion_size+1 ),
     //                                     Point( erosion_size, erosion_size ) );
 
     /// 腐蚀操作
-//    erode( dst, dst, elementoferode );
+    //erode( dst, dst, elementoferode );
 //    imshow( "Dilation Demo", dst );
 
 }
@@ -89,9 +89,9 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )  //
     RED_hsv2binary(dst,imgThresholded);
     //imshow("filter image",dst);
     //inRange(imgThresholded,Scalar(iLowH,iLowS,iLowV),Scalar(iHighH,iHighS,iHighV),imgThresholded);
-    Mat element=getStructuringElement(MORPH_RECT,Size(3,3));
-    morphologyEx(imgThresholded,imgThresholded,MORPH_OPEN,element);//open
-    morphologyEx(imgThresholded,imgThresholded,MORPH_CLOSE,element);//close
+    //Mat element=getStructuringElement(MORPH_RECT,Size(3,3));
+    //morphologyEx(imgThresholded,imgThresholded,MORPH_OPEN,element);//open
+    //morphologyEx(imgThresholded,imgThresholded,MORPH_CLOSE,element);//close
     //imshow("filter image",imgThresholded);
 
     // find contours and store them all as a list
@@ -122,8 +122,20 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )  //
                // (all angles are ~90 degree) then write quandrange
                // vertices to resultant sequence
             if( maxCosine < 0.3 )
-                if (hierarchy[i][2] == -1 && hierarchy[i][3] != -1 )
-                squares.push_back(contours_poly[i]);
+                if (hierarchy[i][2] == -1 && hierarchy[i][3] != -1 )//with father contour but no child
+                   {
+                    squares.push_back(contours_poly[i]);
+                    //point2d vertices[4];
+                    //line(image,contours_poly[i][0],contours_poly[i][2],Scalar(255,0,0),5);
+
+                    ret_val.x = 0.5 * (contours_poly[i][0].x + contours_poly[i][2].x);
+                    ret_val.y = 0.5 * (contours_poly[i][0].y + contours_poly[i][2].y);
+                    ret_val.z = fabs(contours_poly[i][0].x - contours_poly[i][2].x);//问题：o 1 2 3 大概率逆时针，也有顺时针
+
+                    cout<<"center x  "<<ret_val.x<<"  center y  "<<ret_val.y<<"  width  "<<ret_val.z<<endl;
+                    //Rect r0=boundingRect(Mat(contours[i]));
+                    //RotatedRect boundRect = minAreaRect(Mat(contours[i]));
+                   }
         }
      }
 
@@ -147,14 +159,14 @@ static void drawSquares( Mat& image, const vector<vector<Point> >& squares )
 
 int main()
 {
-    int size=2510;  //saved 2080; saved0 2510; saved1 1770
+    int size=1910;  //saved2 2080; saved0 2510; saved1 1770;saved 1910
     Mat img;
     vector<vector<Point> > squares;
 
     for(int counter=10;counter <= size;counter=counter+10)
     {
         string imgName;
-        imgName = "/home/long/FlightPictures/saved0/picture";
+        imgName = "/home/long/FlightPictures/saved/picture";
         stringstream ss0;
         string str0;
         ss0 << counter;
@@ -162,7 +174,7 @@ int main()
         imgName = imgName + str0 + ".png";
 
         string outName;
-        outName = "/home/long/FlightPictures/saved0/processed";
+        outName = "/home/long/FlightPictures/saved/acted";
         outName = outName + str0 + ".png";
 
         img=imread(imgName);
