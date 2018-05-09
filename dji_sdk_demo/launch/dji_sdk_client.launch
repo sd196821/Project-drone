@@ -1,21 +1,21 @@
 <launch>
 	<node pkg="dji_sdk_demo" type="dji_sdk_client" name="dji_sdk_client" output="screen">
-	<param name="thresh_pixel" type="double" value="20"/>
-	<param name="thresh_pattern_y" type="double" value="10"/>
-	<param name="thresh_pattern_z" type="double" value="3"/>
-	<param name="thresh_gap" type="double" value="1"/>
+	<param name="thresh_pixel" type="double" value="20.0"/>
+	<param name="thresh_pattern_y" type="double" value="10.0"/>
+	<param name="thresh_pattern_z" type="double" value="3.0"/>
+	<param name="thresh_gap" type="double" value="1.0"/>
 	<param name="k_p" type="double" value="0.5"/>
-	<param name="k_d" type="double" value="0.05"/>
+	<param name="k_d" type="double" value="0.08"/>
 	<param name="k_i" type="double" value="0.005"/>
 	<param name="v_max_y" type="double" value="0.3"/>
 	<param name="v_max_z" type="double" value="0.15"/>
 	<param name="GapVel" type="double" value="0.2"/>
-	<param name="iLowH" type="double" value="150"/>
-	<param name="iHighH" type="double" value="179"/>
-	<param name="iLowS" type="double" value="90"/>
-	<param name="iHighS" type="double" value="255"/>
-	<param name="iLowV" type="double" value="90"/>
-	<param name="iHighV" type="double" value="255"/>
-	<param name="pattern_width" type="double" value="60"/>
+	<param name="iLowH" type="double" value="150.0"/>
+	<param name="iHighH" type="double" value="179.0"/>
+	<param name="iLowS" type="double" value="90.0"/>
+	<param name="iHighS" type="double" value="255.0"/>
+	<param name="iLowV" type="double" value="90.0"/>
+	<param name="iHighV" type="double" value="255.0"/>
+	<param name="pattern_width" type="double" value="60.0"/>
 	</node>
 </launch>
