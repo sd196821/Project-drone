@@ -181,18 +181,18 @@ static Point3f findSquares( const Mat& image, vector<vector<Point> >& squares ) 
               ret_val.x = boundRect.center.x;
               ret_val.y = boundRect.center.y;
               ret_val.z = detected_flag ;
-              return ret_val;
+
           }
          else
          {
             ret_val.x = 99999;
             ret_val.y = 99999;
             detected_flag = 0;
-            return ret_val;
+         
          }
         }
      }
-
+   return ret_val;
 }
 
 static void drawSquares( Mat& image, const vector<vector<Point> >& squares )
@@ -270,52 +270,75 @@ int main(int argc, char** argv)
             Flight::HorizontalCoordinate::HORIZONTAL_BODY |
             Flight::SmoothMode::SMOOTH_DISABLE;*/
 
-    ros::Rate loop_rate(50);
+    ros::Rate loop_rate(20);
     
-    control_flag = obtain_control(drone);
+   // control_flag = obtain_control(drone);
     //drone->check_version();
     //for(int i=0;i<6;i++) drone->takeoff();
-    sleep(1);
+    //sleep(1);
 
-    int ret,mode;
-    mode = GETBUFFER_MODE|TRANSFER_MODE;
-    ret = manifold_cam_init(mode);
+    //int ret,mode;
+    //mode = GETBUFFER_MODE|TRANSFER_MODE;
+    //libret = manifold_cam_init(mode);
 
     while(ros::ok())
     {
-      //drone->request_sdk_permission_control();
+      drone->request_sdk_permission_control();
       //imageRead().copyTo(src);
       //medianBlur(src,src,3);
       //int ret;
-      Mat image,camera;
-      ret = manifold_cam_read(zbuffer, &nframe, 1);
-      if(ret==-1)
-          cout<<"Manifold initialization failed."<<endl;
-      camera = Mat(IMAGE_H * 3 / 2, IMAGE_W, CV_8UC1, zbuffer);
-      if(camera.empty())
-          cout<<"Fail to acquire picture."<<endl;
-      cvtColor(camera,camera,CV_YUV2BGR_NV12);
-      image = camera(Range(0, 720), Range(160, 1120));
+      //Mat image,camera;
+      //ret = manifold_cam_read(zbuffer, &nframe, 1);
+      //if(ret==-1)
+      //    cout<<"Manifold initialization failed."<<endl;
+      //camera = Mat(IMAGE_H * 3 / 2, IMAGE_W, CV_8UC1, zbuffer);
+      //if(camera.empty())
+       //   cout<<"Fail to acquire picture."<<endl;
+      //cvtColor(camera,camera,CV_YUV2BGR_NV12);
+      //image = camera(Range(0, 720), Range(160, 1120));
             
-      contoursCenter = findSquares(image,squares);
-      detected_flag = contoursCenter.z;
-      drawSquares(image,squares);
+      //contoursCenter = findSquares(image,squares);
+      //detected_flag = contoursCenter.z;
+      //drawSquares(image,squares);
       
-      int gimbal_yaw=drone->gimbal.yaw;
-      if(detected_flag == 0)
-      {
-        if(gimbal_yaw >= -890)
-          drone->gimbal_speed_control(0,0,-10);//roll_r,pitch_r,yaw_rate}
-        else if(gimbal_yaw <= 890)
-          drone->gimbal_speed_control(0,0,10);
-      }
-      else
+      float gimbal_yaw=drone->gimbal.yaw;
+     // if(detected_flag == 0)
+     // {
+      int gimbal_counter = 0;
+        //if(gimbal_yaw == 0 && gimbal_yaw >= -90)
+        if (gimbal_yaw > -89 && gimbal_counter == 0)
+           {
+               drone->gimbal_speed_control(-100,0,0)
+               gimbal_counter = 1;
+           }
+        else if(gimbal_yaw <= -89 && gimbal_counter == 1)
+          {
+              drone->gimbal_speed_control(+200,0,0);//yaw_rate,roll_r,pitch_r,unit:0.1 deg/s}
+              gimbal_counter = 2;
+           }
+        else if(gimbal_yaw == 0.0 && gimbal_yaw <= 89 && gimbal_counter = 2)
+          {
+              drone->gimbal_speed_control(+100,0,0);
+              gimbal_counter = 3;
+          }
+        else if(gimbal_yaw > 89 && gimbal_counter = 3)
+          {
+              drone->gimbal_speed_control(-200,0,0);
+              gimbal_counter = 4;
+          }
+        else if (gimbal_yaw == 0 && gimbal_counter = 4)
+          {
+              drone->gimbal_speed_control(0,0,0);
+          }
+        else drone->gimbal_speed_control(0,0,0); 
+     // }
+     /* else
       {
           drone->gimbal_speed_control(0,0,0);
           cout<<"Large red detected"<<endl;
           cout<<"center.x: "<<contoursCenter.x<<"  center.y: "<<contoursCenter.y<<endl;
           cout<<"Gimbal yaw angle: "<< gimbal_yaw/10 <<" deg"<<endl;
-      }
+      }*/
 
       //e_Y = deltaX_Local(contoursCenter.x, p_x);
       //e_Z = -1 * deltaY_Local(contoursCenter.y, p_y);//coordinate frame transformation
@@ -370,6 +393,6 @@ int main(int argc, char** argv)
     }
 
 
-  manifold_cam_exit();
+  //manifold_cam_exit();
   return 0;
 }
