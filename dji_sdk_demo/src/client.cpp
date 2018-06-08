@@ -80,22 +80,23 @@ int iHighS = 255;
 int iLowV = 90;
 int iHighV = 255;*/
 
-// not detected == 0,target detected == 1 ,approaching target == 2, ready to fly == 3
+// not detected == 0
 //int detected_flag = 0;
 
 int manifold_cam_read(unsigned char *buffer, unsigned int *nframe, unsigned int block);
 int manifold_cam_init(int mode);
 int manifold_cam_exit();
 
-/*bool obtain_control(DJIDrone *drone)
-{   
-    uint8_t ctrlFlag;
+uint8 obtain_control(DJIDrone *drone)
+{   //#0:rc, 1:mobile, 2:onboard
+    uint8 ctrlFlag;
     drone->request_sdk_permission_control();
     FlightControlInfo ctrlInfo = drone->flight_control_info;
     ctrlFlag = ctrlInfo.cur_ctrl_dev_in_navi_mode;
-    if(ctrlFlag != 0) 
-        cout << "Control Permission Obtained"<<endl;
-}*/
+    return ctrlFlag;
+    //if(ctrlFlag != 0) 
+    //    cout << "Control Permission Obtained"<<endl;
+}
 
 static double angle( Point pt1, Point pt2, Point pt0 )
 {
@@ -302,6 +303,18 @@ void addColumnTitle()
            << "\t"
            <<"detected flag "
            << "\t"
+           <<"vel_x"
+           <<"\t"
+           <<"vel_y"
+           <<"\t"
+           <<"vel_z"
+           <<"\t"
+           <<"acc_x"
+           <<"\t"
+           <<"acc_y"
+           <<"\t"
+           <<"acc_z"
+           <<"\t"
            << endl;
     str = string(stream.str());
     fputs(str.c_str(), file);
@@ -316,13 +329,14 @@ void CreateFile()
     file = fopen(str2.c_str(),"a");
 }
 
-void saveData(int counter, Point3f data)
+void saveData(int counter, Point3f data, DJIDrone *drone)
 {
     clock_t start=clock();
     stream << setprecision(10) <<
               ///data from flight controllor
               start*1000/CLOCKS_PER_SEC  << "\t" << counter << "\t" << data.x << "\t" << data.y << "\t" << data.z << "\t"
-              <<endl;
+              << drone->velocity.vx << "\t" << drone->velocity.vy << "\t"<< drone->velocity.vz << "\t" 
+              << drone->acceleration.ax << "\t" << drone->acceleration.ay << "\t" << drone->acceleration.az << "\t"<<endl;
     str = string(stream.str());
     fputs(str.c_str(), file);
     stream.str("");
@@ -350,12 +364,12 @@ pair<float,float> PID_error(float x,float y)
 
 int main(int argc, char** argv)
 { 
-
+    uint8 ctrl_flag = 0; // 0:rc, 1:mobile, 2:onboard
     float p_x = 1981.56522387247 * 6 / 25.0;//pixel center x
     float p_y = 1482.94787976315 * 6 / 25.0;//pixel center y
     Mat src;
     vector<vector<Point> > squares;
-    float detected_flag;
+    float detected_flag = 0;
     float last_detected_flag = 0;
     float tmp_flag = 0;
 
@@ -434,6 +448,7 @@ int main(int argc, char** argv)
     ret = manifold_cam_init(mode);
 
     int imgCounter=1;
+    int through_flag = 0;
 
     while(ros::ok())
     {
@@ -450,7 +465,8 @@ int main(int argc, char** argv)
       //imageRead().copyTo(src);
       //medianBlur(src,src,3);
       //int ret;
-      drone->request_sdk_permission_control();
+      obtain_control(drone);
+      //drone->request_sdk_permission_control();
       //usleep(10);
       Mat image,camera;
       ret = manifold_cam_read(zbuffer, &nframe, 1);
@@ -463,10 +479,11 @@ int main(int argc, char** argv)
       image = camera(Range(0, 720), Range(160, 1120));
       if (imgCounter % 10 == 0)
           imwrite(imgName,image);
+           
 
       last_detected_flag += tmp_flag;
       
-      if (contoursCenter.x != 99999)
+      if (contoursCenter.x != 99999 && contoursCenter.x != 0 && contoursCenter.x != 0)
         {
           lastCenter.x = contoursCenter.x;
           lastCenter.y = contoursCenter.y;
@@ -481,29 +498,31 @@ int main(int argc, char** argv)
       tmp_flag = detected_flag;
       //drawSquares(image,squares);
 
-      saveData(imgCounter, contoursCenter);
+      saveData(imgCounter, contoursCenter, drone);
 
       //fs<<"contours center X:  "<<contoursCenter.x;
       //fs<<"                Y:  "<<contoursCenter.y;
           
       //**********flight through***********//
       //``````step 1 : target not detected, keeping hovering state
-      if((detected_flag == 0) || (last_detected_flag <= 50))
+      if(through_flag == 1)
       {
+        if((detected_flag == 0) || (last_detected_flag <= 50))
+        {
         cout<<"No target detected."<<endl;
         drone->attitude_control(flag, 0, 0, 0, 0);
         //usleep(2);
         //fs<<"detected flag: "<<detected_flag;
-      }
+        }
       else 
-      {//``````step 2: target detected, adjust drone to aim at contours center
+        {//``````step 2: target detected, adjust drone to aim at contours center
           cout<<"Target found."<<endl;
           cout<<"center X: "<<contoursCenter.x<<"  Center Y:  "<<contoursCenter.y<<endl;
 
           e_Y_last = e_Y;
           e_Z_last = e_Z;
           
-          if (contoursCenter.x == 99999)
+          if (contoursCenter.x == 99999 ||(contoursCenter.x == 0 && contoursCenter.y == 0) )
              {
                  e_Y = (lastCenter.x - p_x) * pattern_width / pattern_width_in_pixel;
                  e_Z = -1 * (lastCenter.y - p_y) * pattern_width / pattern_width_in_pixel;
@@ -517,43 +536,29 @@ int main(int argc, char** argv)
           e_Y_sum += e_Y;
           e_Z_sum += e_Z; 
 
-          if((abs(e_Y) > thresh_pattern_y) && (abs(e_Z) > thresh_pattern_z))
+           if((abs(e_Y) > thresh_pattern_y) && (abs(e_Z) > thresh_pattern_z))
             {
                 //detected_flag = 2;
-                cout<<"Aliging the gate."<<endl;
+                cout<<"Drone is aiming at the gate."<<endl;
                 vy = k_p * e_Y + k_d * (e_Y - e_Y_last) + k_i * e_Y_sum;
                 vz = k_p * e_Z + k_d * (e_Z - e_Z_last) + k_i * e_Z_sum;
                 vy = (abs(vy) > v_max_y)? ( v_max_y * abs(vy) / vy ) : vy;
                 vz = (abs(vz) > v_max_z)? ( v_max_z * abs(vz) / vz ) : vz;
                 drone->attitude_control(flag, 0, vy, vz, 0);
                 //fs<<"detected flag: "<<detected_flag;
-                usleep(2);              
+                //usleep(2);              
             }
-        else 
+           else
             {//`````````step 3:ready to fly through gap
-                detected_flag = 3;
-                //drone->attitude_control(flag, 0, 0, 0, 0);
-                //usleep(100000);
-                cout << "Ready to fly through " <<endl;
-                //``````step 4:fly through
-                //fs<<"detected flag: "<<detected_flag;
-                //float start_position = drone->local_position.x;
-                //float end_position = drone->local_position.x + GapRoute;
-                //e_X = GapRoute;//deltaX_Local(GapRoute, drone->local_position.x);some problem?
-
-                //if(abs(e_X) > thresh_gap)
-                //{
-                    //vx = k_p * e_X;
-                    //vx = (vx > v_max)? v_max : vx;
-                drone->attitude_control(flag, GapVel, 0, 0, 0);
-                    //usleep(80000);
-                    //e_X = 10 - (drone->local_position.x - start_position);
-                //}//step 5: recover to hover state
-                //drone->attitude_control(flag, 0, 0, 0, 0);
-                //cout<<"Flying through gap ..."<<endl;
+                through_flag = 1;
+                cout << "Ready to fly through " <<endl;      
             }
+        }
       }
-
+      else
+      {
+          drone->attitude_control(flag,GapVel,0,0,0);
+      }
       //fs2.release();
 
 
